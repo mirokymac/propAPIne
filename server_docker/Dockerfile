@@ -7,11 +7,10 @@ RUN apt-get -y -m update && \
 ADD https://api.github.com/repos/usnistgov/REFPROP-cmake/git/refs/heads/master RPcmake-version.json
 RUN cd /root && \
     git clone --recursive https://github.com/usnistgov/REFPROP-cmake && \
-    cd REFPROP-cmake/ && \
-    mkdir -p build && \
-    cd build/
-COPY fortran/ /root/REFPROP-cmake/
+    cd REFPROP-cmake/
 
-WORKDIR /root/REFPROP-cmake/build
-CMD cmake .. -DREFPROP_FORTRAN_PATH=/root/REFPROP-cmake/fortran/ && \
+WORKDIR /root/REFPROP-cmake/
+CMD mkdir -p ./build && \
+    cd ./build && \
+    cmake .. -DREFPROP_FORTRAN_PATH=/root/REFPROP-cmake/fortran/ && \
     cmake --build .
