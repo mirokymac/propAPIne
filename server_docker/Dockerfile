@@ -1,16 +1,10 @@
 FROM ubuntu:18.04
 
 RUN apt-get -y -m update && \
-    apt-get install -y git cmake g++ gfortran python python-numpy python-pip python-six
-
-# This ADD block forces a build (invalidates the cache) if the git repo contents have changed, otherwise leaves it untouched.
-ADD https://api.github.com/repos/usnistgov/REFPROP-cmake/git/refs/heads/master RPcmake-version.json
+    apt-get install -y git python3 python3-pip && \
+    pip install -y CoolProp flask flask-restful
 RUN cd /root && \
-    git clone --recursive https://github.com/usnistgov/REFPROP-cmake && \
-    cd REFPROP-cmake/
-
-WORKDIR /root/REFPROP-cmake/
-CMD mkdir -p ./build && \
-    cd ./build && \
-    cmake .. -DREFPROP_FORTRAN_PATH=/root/REFPROP-cmake/fortran/ && \
-    cmake --build .
+    git clone https://github.com/mirokymac/propAPIne
+WORKDIR /root/propAPIne/server
+EXPOSE 22001
+CMD python3 app.py
