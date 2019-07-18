@@ -1,0 +1,74 @@
+ACENTRIC,Null,O,TRUE,iacentric_factor,Acentric factor
+ALPHA0,Null,O,FALSE,ialpha0,Ideal Helmholtz energy
+ALPHAR,Null,O,FALSE,ialphar,Residual Helmholtz energy
+BVIRIAL,,O,FALSE,iBvirial,Second virial coefficient
+CONDUCTIVITY,W/m/K,O,FALSE,iconductivity,Thermal conductivity
+CP0MASS,J/kg/K,O,FALSE,iCp0mass,Ideal gas mass specific constant pressure specific heat
+CP0MOLAR,J/mol/K,O,FALSE,iCp0molar,Ideal gas molar specific constant pressure specific heat
+CP,J/kg/K,O,FALSE,iCpmass,Mass specific constant pressure specific heat
+CPMOLAR,J/mol/K,O,FALSE,iCpmolar,Molar specific constant pressure specific heat
+CVIRIAL,,O,FALSE,iCvirial,Third virial coefficient
+CVMASS,J/kg/K,O,FALSE,iCvmass,Mass specific constant volume specific heat
+CVMOLAR,J/mol/K,O,FALSE,iCvmolar,Molar specific constant volume specific heat
+DALPHA0_DDELTA_CONSTTAU,Null,O,FALSE,idalpha0_ddelta_consttau,Derivative of ideal Helmholtz energy with delta
+DALPHA0_DTAU_CONSTDELTA,Null,O,FALSE,idalpha0_dtau_constdelta,Derivative of ideal Helmholtz energy with tau
+DALPHAR_DDELTA_CONSTTAU,Null,O,FALSE,idalphar_ddelta_consttau,Derivative of residual Helmholtz energy with delta
+DALPHAR_DTAU_CONSTDELTA,Null,O,FALSE,idalphar_dtau_constdelta,Derivative of residual Helmholtz energy with tau
+DBVIRIAL_DT,Null,O,FALSE,idBvirial_dT,Derivative of second virial coefficient with respect to T
+DCVIRIAL_DT,Null,O,FALSE,idCvirial_dT,Derivative of third virial coefficient with respect to T
+DELTA,Null,O,FALSE,iDelta,Reduced density (rho/rhoc)
+DIPOLE_MOMENT,C m,O,TRUE,idipole_moment,Dipole moment
+D,kg/m^3,IO,FALSE,iDmass,Mass density
+DMOLAR,mol/m^3,IO,FALSE,iDmolar,Molar density
+FH,Null,O,TRUE,iFH,Flammability hazard
+FRACTION_MAX,Null,O,TRUE,ifraction_max,"Fraction (mole, mass, volume) maximum value for incompressible solutions"
+FRACTION_MIN,Null,O,TRUE,ifraction_min,"Fraction (mole, mass, volume) minimum value for incompressible solutions"
+FUNDAMENTAL_DERIVATIVE_OF_GAS_DYNAMICS,Null,O,FALSE,ifundamental_derivative_of_gas_dynamics,Fundamental derivative of gas dynamics
+GAS_CONSTANT,J/mol/K,O,TRUE,igas_constant,Molar gas constant
+G,J/kg,O,FALSE,iGmass,Mass specific Gibbs energy
+GMOLAR,J/mol,O,FALSE,iGmolar,Molar specific Gibbs energy
+GWP100,Null,O,TRUE,iGWP100,100-year global warming potential
+GWP20,Null,O,TRUE,iGWP20,20-year global warming potential
+GWP500,Null,O,TRUE,iGWP500,500-year global warming potential
+HELMHOLTZMASS,J/kg,O,FALSE,iHelmholtzmass,Mass specific Helmholtz energy
+HELMHOLTZMOLAR,J/mol,O,FALSE,iHelmholtzmolar,Molar specific Helmholtz energy
+HH,,O,TRUE,iHH,Health hazard
+H,J/kg,IO,FALSE,iHmass,Mass specific enthalpy
+HMOLAR,J/mol,IO,FALSE,iHmolar,Molar specific enthalpy
+ISTPCOEFF,,A,,iisentropic_expansion_coefficient,Isentropic Expansion Coefficient
+ISBRCOEFF,1/K,O,FALSE,iisobaric_expansion_coefficient,Isobaric expansion coefficient
+ISTHCOEFF,1/Pa,O,FALSE,iisothermal_compressibility,Isothermal compressibility
+M,kg/mol,O,TRUE,imolar_mass,Molar mass
+ODP,Null,O,TRUE,iODP,Ozone depletion potential
+P,Pa,IO,FALSE,iP,Pressure
+PCRIT,Pa,O,TRUE,iP_critical,Pressure at the critical point
+PMAX,Pa,O,TRUE,iP_max,Maximum pressure limit
+PMIN,Pa,O,TRUE,iP_min,Minimum pressure limit
+P_REDUCING,Pa,O,TRUE,iP_reducing,Pressure at the reducing point
+PTRIPLE,Pa,O,TRUE,iP_triple,Pressure at the triple point (pure only)
+PH,Null,O,TRUE,iPH,Physical hazard
+PHASE,Null,O,FALSE,iPhase,Phase index as a float
+PIP,Null,O,FALSE,iPIP,Phase identification parameter
+PRANDTL,Null,O,FALSE,iPrandtl,Prandtl number
+Q,mol/mol,IO,FALSE,iQ,Mass vapor quality
+RHOCRIT,kg/m^3,O,TRUE,irhomass_critical,Mass density at critical point
+RHOMASS_REDUCING,kg/m^3,O,TRUE,irhomass_reducing,Mass density at reducing point
+RHOMOLAR_CRITICAL,mol/m^3,O,TRUE,irhomolar_critical,Molar density at critical point
+RHOMOLAR_REDUCING,mol/m^3,O,TRUE,irhomolar_reducing,Molar density at reducing point
+S,J/kg/K,IO,FALSE,iSmass,Mass specific entropy
+SMOLAR,J/mol/K,IO,FALSE,iSmolar,Molar specific entropy
+SMOLAR_RESIDUAL,J/mol/K,O,FALSE,iSmolar_residual,Residual molar entropy (sr/R = tau*dar_dtau-ar)
+A,m/s,O,FALSE,ispeed_sound,Speed of sound
+I,N/m,O,FALSE,isurface_tension,Surface tension
+T,K,IO,FALSE,iT,Temperature
+TCRIT,K,O,TRUE,iT_critical,Temperature at the critical point
+T_FREEZE,K,O,TRUE,iT_freeze,Freezing temperature for incompressible solutions
+TMAX,K,O,TRUE,iT_max,Maximum temperature limit
+TMIN,K,O,TRUE,iT_min,Minimum temperature limit
+T_REDUCING,K,O,TRUE,iT_reducing,Temperature at the reducing point
+TTRIPLE,K,O,TRUE,iT_triple,Temperature at the triple point
+TAU,Null,O,FALSE,iTau,Reciprocal reduced temperature (Tc/T)
+U,J/kg,IO,FALSE,iUmass,Mass specific internal energy
+UMOLAR,J/mol,IO,FALSE,iUmolar,Molar specific internal energy
+V,Pa s,O,FALSE,iviscosity,Viscosity
+Z,Null,O,FALSE,iZ,Compressibility factor

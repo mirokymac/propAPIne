@@ -1,0 +1,42 @@
+# windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# python
+__pycache__
+*.pyc
+
+
+# libs
+*.dll
+*.so
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# vscode
+.vscode
+
+# testfiles
+testing
+
+# REFPROP build files
+# CMAKE
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+refprop_builder_docker/build/*
+refprop_builder_docker/fortran/*
+
+# REFPROP
+server/refprop/*
