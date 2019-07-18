@@ -40,3 +40,6 @@ refprop_builder_docker/fortran/*
 
 # REFPROP
 server/refprop/*
+
+# Old files
+*_old.*

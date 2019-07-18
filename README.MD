@@ -51,7 +51,6 @@ Thanks @ian bell for bring [COOLPROP](https://github.com/github/gitignore/blob/m
 Thanks @ian bell again for CoolProp-REFPROP_backend and [REFPROP-cmake](https://github.com/usnistgov/REFPROP-cmake)
 
 1. Clone this respository:
-
 `cd ~ && git clone https://github.com/mirokymac/propAPIne.git`
 
 2. Copy `FORTRAN` directory to `./propAPIne/refprop_builder_docker`.
@@ -59,11 +58,9 @@ Thanks @ian bell again for CoolProp-REFPROP_backend and [REFPROP-cmake](https://
 3. Make a directory `build` in `./propAPIne/refprop_builder_docker`.
 
 4. Build REFPROP by:
-
 `cd ~/propAPIne/refprop_builder_docker && docker build .`
 
 then copy the docker-ID:
-
 `docker run -v $PWD/FORTRAN:/root/REFPROP-cmake/fortran -v $PWD/build:/root/REFPROP-cmake/build {docker-ID}`
 
 5. copy `build/librefprop.so` to `refprop\` of your "server" directory;

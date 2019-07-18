@@ -291,26 +291,38 @@ def mProp(sub:str,
         else:
             # 检查使用的backend类型
             if backend in ("CP", "COOLPROP"):
-                sub = SUBS_P[sub][0]
+                sub_ = SUBS_P[sub][0]
             elif backend in ("PENGROBINSON", "PENG-ROBINSON", "PR"):
-                sub = SUBS_P[sub][0]
+                sub_ = SUBS_P[sub][0]
             else:
                 errtext += "Input Error: Not supported backend [%s] requested." % backend
                 logger.error(errtext)
                 res.update({"error": True,
                             "message": errtext})
                 return {"result": res}
+
+# todo: make extend pure backend avaible
+
+            if sub_ == "N/A":
+                # extend_backend_req = True
+                errtext += "Input Error: Not a CoolProp supported substance " + str(sub)
+                logger.error(errtext)
+                res.update({"error": True,
+                            "message": errtext})
+                return {"result": res}
+            sub = sub_
+            del sub_
     else:
         # 2-检查混合物可用性
         mixture = re.findall(MIXTURE_PATTERN, sub)
         if mixture:
             # get substance name
-            sub = set(map(lambda x: x.split(":")[0], mixture))
+            sub = list(map(lambda x: x.split(":")[0], mixture))
             # get substance fraction
             mixture = list(map(lambda x: float(x.split(":")[1]), mixture))
             
-            if sub - set(SUBS_P.keys()):
-                errtext += "Input Error: Not supported substance for mixture:\n" + ", ".join(sub)
+            if set(sub) - set(SUBS_P.keys()):
+                errtext += "Input Error: Not supported substance for mixture: " + ", ".join(sub)
                 logger.error(errtext)
                 res.update({"error": True,
                             "message": errtext})
@@ -328,7 +340,7 @@ def mProp(sub:str,
                     elif mode_refprop:
                         sub = "&".join([SUBS_P[i][1] for i in sub])
                         if "N/A" in sub:
-                            errtext += "Input Error: Not supported substance for REFPROP is detected."
+                            errtext += "Input Error: Not REFPROP supported substance is detected."
                             logger.error(errtext)
                             res.update({"error": True,
                                         "message": errtext})
