@@ -10,7 +10,7 @@ RUN cd /root && \
     cd REFPROP-cmake/
 
 WORKDIR /root/REFPROP-cmake/
-CMD mkdir -p ./build && \
-    cd ./build && \
+CMD mkdir -p build &&\
+    cd build && \
     cmake .. -DREFPROP_FORTRAN_PATH=/root/REFPROP-cmake/fortran/ && \
     cmake --build .
