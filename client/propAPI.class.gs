@@ -9,7 +9,7 @@
     }
   };
   
-  const BASEURL = "http://la01.1ntegral.xyz:22001"
+  const BASEURL = "http://la01.localhost:22001"
   const RETRIES_MAX = 5;
   const HAPROPS = ['T', 'B', 'D', 'V', 'Vha', 'R', 'W', 'Y', 'H', 'Hha', 'S', 'Sha', 'C', 'Cha', 'M', 'Z', 'K', 'A'];
   const HAPROPS_IN = ['T', 'R', 'D', 'W', 'P', 'B', 'H', 'Hha', 'Y', 'P_w', 'S', 'Sha', 'V', 'Vha'];
@@ -30,7 +30,7 @@
       if (BASEURL instanceof Array){
         return BASEURL[Math.floor(Math.random() * BASEURL.length)];
       }
-      return "http://la01.1ntegral.xyz:22002";
+      return "http://hocalhost:22002";
     },
     
     "_UrlCombine": function(base_url, payload){
