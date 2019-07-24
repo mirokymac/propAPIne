@@ -290,7 +290,7 @@ def mProp(sub:str,
                 sub =  SUBS_P[sub][1]
         else:
             # 检查使用的backend类型
-            if backend in ("CP", "COOLPROP"):
+            if backend in ("CP", "COOLPROP") or (not mode_refprop and backend == "REFPROP"):
                 sub_ = SUBS_P[sub][0]
             elif backend in ("PENGROBINSON", "PENG-ROBINSON", "PR"):
                 sub_ = SUBS_P[sub][0]
@@ -314,6 +314,11 @@ def mProp(sub:str,
             del sub_
     else:
         # 2-检查混合物可用性
+        # 2.1-检查是否输入了混合物组分
+        # 2.2-检查是否在组成自定义混合物的物质名中包含了混合物名称
+        # 2.3-检查组成自定义混合物的物质是否都是物性数据库支持的物质
+        # 2.4-检查各物质份额是否均为正数
+        # 2.5-归一化混合物组成
         mixture = re.findall(MIXTURE_PATTERN, sub)
         if mixture:
             # get substance name
@@ -345,6 +350,14 @@ def mProp(sub:str,
                             res.update({"error": True,
                                         "message": errtext})
                             return {"result": res}
+
+             # 检查混合组分输入是否均为正数
+            if not reduce(lambda acc, x: acc and (x > 0), mixture, True):
+                errtext += "Input Error: Building a mixture with a mixture..."
+                logger.error(errtext)
+                res.update({"error": True,
+                        "message": errtext})
+                return {"result": res}
             mixture = [i/sum(mixture) for i in mixture]
         else:
             extend_backend_req = True
@@ -540,6 +553,14 @@ def flasher(sub:str,
                         return {"result": res}
                 else:
                     extend_backend_req = True
+
+        # 检查混合组分输入是否均为正数
+        if not reduce(lambda acc, x: acc and (x > 0), mixture, True):
+            errtext += "Input Error: Building a mixture with a mixture..."
+            logger.error(errtext)
+            res.update({"error": True,
+                    "message": errtext})
+            return {"result": res}
         mixture = [i/sum(mixture) for i in mixture]
     else:
         extend_backend_req = True
@@ -614,7 +635,6 @@ def flasher(sub:str,
                           inputValue2
                           )
                 )
-        
 #       
         Q = sub.keyed_output(getattr(cp, "iQ"))
         T = sub.T()
