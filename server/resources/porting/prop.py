@@ -78,7 +78,7 @@ def input_construct(type1:str, type2:str, value1:float, value2:float):
     return res
 
 TYPE_PATTERN = r"[A-Za-z0-9\_]+"
-MIXTURE_PATTERN = r"[A-Z0-9]+\s?\:\s?\d+\.?\d*"
+MIXTURE_PATTERN = r"[A-Z0-9]+\s?\:\s?\-?\d+\.?\d*"
 
 del loader, tmp_ABcal_types, tmp_io_flags, tmp_qc_flags, tmp_SIcal_types
 # 物料字典
@@ -232,7 +232,7 @@ def mProp(sub:str,
 
     # 处理输出项
     # 构建闪蒸计算输出
-    flash = set(OTYPE_MIX.keys()) + set(OTYPE_PHASE.keys())
+    flash = set(OTYPE_MIX.keys()).union(set(OTYPE_PHASE.keys()))
     flash &= outType
     outType -= flash
     # 如果将进行闪蒸计算而目标组成不是混合物
@@ -307,8 +307,8 @@ def mProp(sub:str,
                 })
             elif item == "K":
                 sub.specify_phase(cp.iphase_twophase)
-                liq = sub.get_mole_fractions_liquid()
-                vap = sub.get_mole_fractions_vapor()
+                liq = sub.mole_fractions_liquid()
+                vap = sub.mole_fractions_vapor()
                 ks = list()
                 for l, v in zip(liq, vap):
                     if l == 0:

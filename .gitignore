@@ -38,7 +38,7 @@ refprop_builder_docker/fortran/*
 /server/refprop/*
 
 # ignore runtime file
-/server_docker/propAPIne/server/*
+/server_docker
 
 # ignore playground
 testing
