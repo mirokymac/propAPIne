@@ -46,7 +46,7 @@ class Flash(Resource):
         
         extra = None
         if args.extra:
-            extra = string_to_dict(args.extra)
+            extra = string_to_dict(args.extra, {"backend":"REFPROP"})
 
         if extra and "backend" in extra:
             result = flasher(args.substance,

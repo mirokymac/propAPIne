@@ -14,18 +14,20 @@ REFPROP_READY = False
 from difflib import SequenceMatcher
 from functools import reduce
 from json import load as load_json
+from json import dumps as dumps_json
 import logging
 #from os.path import isfile, getsize
 #import pickle
 import re
 import CoolProp.CoolProp as cp
+from . import dippr_functions
 
 from ..util.load_csv import Load_csv, Key
 
 # 初始化环境
 logger = logging.getLogger(__name__)
 # 输入输出变量列表
-# 不建议H和S作为intype，因为使用的reference不一样
+# ps1: 不建议H和S作为intype，因为不同的backend使用的reference不一样
 loader = Load_csv(r'./common/CoolProp.AbstractState.IO.csv')
 
 tmp_SIcal_types = loader(Key(0))
@@ -36,15 +38,21 @@ tmp_ABcal_types = loader(Key(4))
 OTYPE = dict(zip(tmp_SIcal_types, tmp_ABcal_types))
 ITYPE = frozenset([i for i, j in zip(tmp_SIcal_types, tmp_io_flags) if "I" in j])
 QCTYPE = frozenset([i for i, j in zip(tmp_SIcal_types, tmp_qc_flags) if j])
+# 2024-03-05 增加fugacity，fugacity_coeff和K
 OTYPE_MIX = {
         "VAPFRAC": "mole_fractions_vapor",
         "LIQFRAC": "mole_fractions_liquid"
-            }
+        }
+OTYPE_PHASE = {
+        "FUGACITY": "fugacity",
+        "FUGACITYCOEFF": "fugacity_coeff",
+        "K": "K"
+        }
 OTYPE_COMBO =  {
         "CRIT": frozenset(("TCRIT", "PCRIT", "ACENTRIC", "M")),
         "FLOW": frozenset(("D", "V", "M", "Z")),
         "HEAT": frozenset(("S", "H", "U", "CP"))
-                }
+        }
 
 # 构建ITYPE_AB
 def input_construct(type1:str, type2:str, value1:float, value2:float):
@@ -69,17 +77,33 @@ def input_construct(type1:str, type2:str, value1:float, value2:float):
                 }
     return res
 
-TYPE_PATTERN = r"[A-Za-z0-9]+"
+TYPE_PATTERN = r"[A-Za-z0-9\_]+"
 MIXTURE_PATTERN = r"[A-Z0-9]+\s?\:\s?\d+\.?\d*"
 
 del loader, tmp_ABcal_types, tmp_io_flags, tmp_qc_flags, tmp_SIcal_types
 # 物料字典
+# CoolProp 与 Refprop部分
 loader = './common/fluidlist.json'
-    
 with open(loader, "r") as loader:
     SUBS_P = load_json(loader)
+
+# EOS 扩展部分
+loader = './common/EOS_substance_list.csv'
+with open(loader, "r") as loader:
+    SUBS_EOS = loader.readlines()
+SUBS_EOS = SUBS_EOS[0].split(",")
+SUBS_EOS = set(SUBS_EOS)
 #SUBS_M_CP = dict()
 #SUBS_M_REFPROP = dict()
+
+# DIPPR 扩展温度相关参数字典
+loader = './common/DIPPR.json'
+with open(loader, "r") as loader:
+    DIPP_PARAM = load_json(loader)
+DIPP_CONV = {"CONDUCTIVITY":"TC", "V":"V"}
+
+# 相态列表
+PHASE = ("gas", "liquid", "not_imposed", "supercritical", "supercritical_gas", "supercritical_liquid", "twophase")
 
 # 尝试载入REFPROP
 PATH_TO_REFPROP = "./refprop/"
@@ -91,159 +115,37 @@ try:
     logger.critical("Refprop loaded.")
 except:
     REFPROP_READY = False
-    logger.critical("Refprop unable to load.")
+    logger.critical("Refprop failed to load. Refprop is disableed.")
 
-#def prop(sub:str,
-#         outType:list,
-#         inputType1:str,
-#         inputValue1:float,
-#         inputType2:str,
-#         inputValue2:float,
-#         backend:str="CP")-> dict:
-#    
-#    pass
-#
-## 废弃代码： mProp/AbstractState可以完全覆盖这部分的内容。
-#def pProp(sub:str,
-#          outType:list,
-#          inputType1:str,
-#          inputValue1:float,
-#          inputType2:str,
-#          inputValue2:float,
-#          backend:str="CP")-> dict:
-#    
-#    res = dict()
-#    errtext = ""
-#    mode_refprop = False
-#    extend_backend_req = False
-#    # 检查REFPROP可用性
-#    if backend == "REFPROP":
-#        if REFPROP_READY:
-#            mode_refprop = True
-#        else:
-#            errtext += "Warning: No REFPROP support on server!\n"
-#            res.update({"warning": True,
-#                        "message": errtext})
-#            mode_refprop = False
-#    # 转换输出关键字为list
-#    if type(outType) != list:
-#        if type(outType) == str:
-#            outType = [outType]
-#        else:
-#            errtext += "Input Error: Invalid output type: " + str(outType)
-#            logger.error(errtext)
-#            res.update({"error": True,
-#                        "message": errtext})
-#            return {"result": res}
-#    # 将所有文本输入转化为大写
-#    sub = sub.upper()
-#    backend = backend.upper()
-#    inputType1 = inputType1.upper()
-#    inputType2 = inputType2.upper()
-#    outType = set(list(map(str.upper, outType)))
-#    
-#    # 检查纯物质名字是否受到支持
-#    if sub in SUBS_P:
-#        if mode_refprop:
-#            if SUBS_P[sub][1] != "N/A":
-#                errtext += "Input Error: Not a REFPROP supported substance" + str(sub)
-#                logger.error(errtext)
-#                res.update({"error": True,
-#                            "message": errtext})
-#                return {"result": res}
-#            else:
-#                sub = "REFPROP::" + SUBS_P[sub][1]
-#        else:
-#            # 检查使用的backend类型
-#            if backend in ("CP", "COOLPROP"):
-#                sub = SUBS_P[sub][0]
-#            elif backend in ("PENGROBINSON", "PENG-ROBINSON", "PR"):
-#                sub = "PR::" + SUBS_P[sub][0]
-#            else:
-#                errtext += "Input Error: Not supported backend [%s] requested." % backend
-#                logger.error(errtext)
-#                res.update({"error": True,
-#                            "message": errtext})
-#                return {"result": res}
-#    else:
-#        extend_backend_req = True
-#    
-#    if inputType1 == inputType2 and not set(outType).issubset(QCTYPE):
-#        errtext += "Input Error. Only one input Type [%s] is given." % inputType1
-#        logger.error(errtext)
-#        res.update({"error": True,
-#                    "message": errtext})
-#        return {"result": res}
-#    
-#    if SequenceMatcher(None, inputType1, inputType2).find_longest_match(0, len(inputType1), 0, len(inputType2)).size and not set(outType).issubset(QCTYPE):
-#        errtext += "Input Error. Input Type [%s&%s] is the same." % (inputType1, inputType2)
-#        logger.error(errtext)
-#        res.update({"error": True,
-#                    "message": errtext})
-#        return {"result": res}
-#        
-#    if {inputType1, inputType2}.issubset(ITYPE) and not set(outType).issubset(QCTYPE):
-#        errtext += "Input Error. Invalid input type combo [%s&%s]." % (inputType1, inputType2)
-#        logger.error(errtext)
-#        res.update({"error": True,
-#                    "message": errtext})
-#        return {"result": res}
-#    
-#    for item in ("H", "S"):
-#        if item in inputType1 + inputType2:
-#            errtext += "Warning: Unexpected result due to [%s] using difference Reference point on different backend.\n" % item
-#            logger.warning(errtext)
-#            res.update({"warning": True,
-#                        "message": errtext})
-#    
-#    if type(inputValue1) == float and type(inputValue2) == float:
-#        errtext += "Input Error. Invalid values are not numbers."
-#        logger.error(errtext)
-#        res.update({"error": True,
-#                    "message": errtext})
-#        return {"result": res}
-#    
-#    # 处理输出项
-#    for item in set(OTYPE_COMBO.keys()).intersection(outType):
-#        outType.remove(item)
-#        outType.union(OTYPE_COMBO[item])
-#        
-#    if outType - set(OTYPE.keys()):
-#        errtext += "Warning: Unsupported Output Type keywords: %s \n" % list(outType - OTYPE)
-#        logger.warning(errtext)
-#        res.update({"warning": True,
-#                    "message": errtext})
-#    
-#    outType = outType.intersection(OTYPE.keys())
-#    
-#    for item in outType:
-#        try:
-#            if extend_backend_req:
-#                # todo: impletementing of pProp_extend()
-#                res.update(pProp_extend())
-#            else:
-#                res.update({item: cp.PropsSI(item, inputType1, inputValue1, inputType2, inputValue2, sub)})
-#        except Exception as e:
-#            errtext += "Calculation Error: Fail to cal [%s]:\n" % item
-#            errtext += str(e)
-#            res.update({"warning": True,
-#                        "message": errtext})
-#    
-#    if {"message", "warning"} == set(res.keys()):
-#        errtext += "Fatal Calculation Error: No result calculated!"
-#        res.update({"warning": True,
-#                    "message": errtext})
-#    
-#    return {"result": res}
-    
-            
+# 尝试载入扩展EOS物料
+loader = "./common/addition_substance_EOS.json"
+with open(loader, "r") as loader:
+    loader = load_json(loader)
+DIPPR_NAME_CONV = dict([i["name"], i["aliases"][0]] for i in loader)
+
+loader = dumps_json(loader)
+cp.set_debug_level(100)
+cp.add_fluids_as_JSON("PR", loader)
+try:
+    cp.PropsSI('H', 'P', 101325, 'Q', 1, 'SRK::SIH4')
+    EXEOS_READY = True
+    logger.critical("Extend EOS loaded.")
+except:
+    EXEOS_READY = False
+    logger.critical("Extend EOS failed to load.")
+cp.set_debug_level(0)
+
+del loader
+
+
 def mProp(sub:str,
           outType:list,
           inputType1:str,
           inputValue1:float,
           inputType2:str,
           inputValue2:float,
-          backend:str="CP")-> dict:
+          backend:str="CP",
+          preferedPhase:str="")-> dict:
     res = dict()
     errtext = ""
     mode_refprop = False
@@ -259,199 +161,126 @@ def mProp(sub:str,
             res.update({"warning": True,
                         "message": errtext})
             mode_refprop = False
+            
+    # 2020-6-5 增加额外EOS组分处理
+    # 2024-03-05 调整位置，减少不必要计算
+    sub, mixture, backend, _res = subsHandler(sub, backend, mode_refprop)
+    if "error" in _res:
+        return {"result": _res}
+    errtext += _res.get("message", "")
+    res.update(_res)
+    del _res
+    
+    
     # 转换输出关键字为list
     if type(outType) != list:
         if type(outType) == str:
             outType = re.findall(TYPE_PATTERN, outType)
         else:
-            errtext += "Input Error: Invalid output type: " + str(outType)
+            errtext += f"Input Error: Invalid output type: {outType}\n" 
             logger.error(errtext)
             res.update({"error": True,
                         "message": errtext})
             return {"result": res}
+
     # 将所有文本输入转化为大写
-    sub = sub.upper()
-    backend = backend.upper()
     inputType1 = inputType1.upper()
     inputType2 = inputType2.upper()
     outType = set(list(map(str.upper, outType)))
     
-    # 检查纯物质名字是否受到支持
-    # 1-检查REFPROPbackend可用性
-    if sub in SUBS_P:
-        if mode_refprop:
-            if SUBS_P[sub][1] == "N/A":
-                errtext += "Input Error: Not a REFPROP supported substance " + str(sub)
-                logger.error(errtext)
-                res.update({"error": True,
-                            "message": errtext})
-                return {"result": res}
-            else:
-                sub =  SUBS_P[sub][1]
-        else:
-            # 检查使用的backend类型
-            if backend in ("CP", "COOLPROP") or (not mode_refprop and backend == "REFPROP"):
-                sub_ = SUBS_P[sub][0]
-            elif backend in ("PENGROBINSON", "PENG-ROBINSON", "PR"):
-                sub_ = SUBS_P[sub][0]
-            else:
-                errtext += "Input Error: Not supported backend [%s] requested." % backend
-                logger.error(errtext)
-                res.update({"error": True,
-                            "message": errtext})
-                return {"result": res}
-
-# todo: make extend pure backend avaible
-
-            if sub_ == "N/A":
-                # extend_backend_req = True
-                errtext += "Input Error: Not a CoolProp supported substance " + str(sub)
-                logger.error(errtext)
-                res.update({"error": True,
-                            "message": errtext})
-                return {"result": res}
-            sub = sub_
-            del sub_
-    else:
-        # 2-检查混合物可用性
-        # 2.1-检查是否输入了混合物组分
-        # 2.2-检查是否在组成自定义混合物的物质名中包含了混合物名称
-        # 2.3-检查组成自定义混合物的物质是否都是物性数据库支持的物质
-        # 2.4-检查各物质份额是否均为正数
-        # 2.5-归一化混合物组成
-        mixture = re.findall(MIXTURE_PATTERN, sub)
-        if mixture:
-            # get substance name
-            sub = list(map(lambda x: x.split(":")[0], mixture))
-            # get substance fraction
-            mixture = list(map(lambda x: float(x.split(":")[1]), mixture))
-            
-            if set(sub) - set(SUBS_P.keys()):
-                errtext += "Input Error: Not supported substance for mixture: " + ", ".join(sub)
-                logger.error(errtext)
-                res.update({"error": True,
-                            "message": errtext})
-                return {"result": res}
-            else:
-                if reduce(lambda acc, x: SUBS_P[x][2] or acc, sub, False):
-                    errtext += "Input Error: Building a mixture with a mixture..."
-                    logger.error(errtext)
-                    res.update({"error": True,
-                            "message": errtext})
-                    return {"result": res}
-                else:
-                    if backend in ("CP", "COOLPROP"):
-                        sub = "&".join([SUBS_P[i][0] for i in sub])
-                    elif mode_refprop:
-                        sub = "&".join([SUBS_P[i][1] for i in sub])
-                        if "N/A" in sub:
-                            errtext += "Input Error: Not REFPROP supported substance is detected."
-                            logger.error(errtext)
-                            res.update({"error": True,
-                                        "message": errtext})
-                            return {"result": res}
-
-             # 检查混合组分输入是否均为正数
-            if not reduce(lambda acc, x: acc and (x > 0), mixture, True):
-                errtext += "Input Error: Building a mixture with a mixture..."
-                logger.error(errtext)
-                res.update({"error": True,
-                        "message": errtext})
-                return {"result": res}
-            mixture = [i/sum(mixture) for i in mixture]
-        else:
-            extend_backend_req = True
-
-    if  not outType.issubset(QCTYPE):
+    # inType checks
+    if not outType.issubset(QCTYPE):
+        # check if the same input
         if inputType1 == inputType2:
-            errtext += "Input Error. Only one input Type [%s] is given." % inputType1
+            errtext += "Input Error. Only one input Type [%s] is given.\n" % inputType1
             logger.error(errtext)
             res.update({"error": True,
                         "message": errtext})
             return {"result": res}
-        
+
+        # check alias, if the input is the same or not
         if SequenceMatcher(None, inputType1, inputType2).find_longest_match(0, len(inputType1), 0, len(inputType2)).size:
-            errtext += "Input Error. Input Type [%s&%s] is the same." % (inputType1, inputType2)
+            errtext += "Input Error. Input Type [%s&%s] is the same.\n" % (inputType1, inputType2)
             logger.error(errtext)
             res.update({"error": True,
                         "message": errtext})
             return {"result": res}
-            
+
         if not {inputType1, inputType2}.issubset(ITYPE):
-            errtext += "Input Error. Invalid input type combo [%s&%s]." % (inputType1, inputType2)
+            errtext += "Input Error. Invalid input type combo [%s&%s].\n" % (inputType1, inputType2)
             logger.error(errtext)
             res.update({"error": True,
                         "message": errtext})
             return {"result": res}
-    
+
     for item in ("H", "S"):
         if item in inputType1 + inputType2:
-            errtext += "Warning: Unexpected result due to [%s] using difference Reference point on different backend.\n" % item
+            errtext += "Warning: Unexpected result may occur, due to [%s] using difference Reference point on different backend.\n" % item
             logger.warning(errtext)
             res.update({"warning": True,
                         "message": errtext})
-    
+
     try:
         inputValue1 = float(inputValue1)
         inputValue2 = float(inputValue2)
     except:
-        errtext += "Input Error. Invalid values are not numbers."
+        errtext += "Input Error. Invalid value. Values are not numbers\n."
         logger.error(errtext)
         res.update({"error": True,
                     "message": errtext})
         return {"result": res}
-    
-    if backend in ("PENGROBINSON", "PENG-ROBINSON", "PR"):
-        backend = "PR"
-    elif backend in ("CP", "COOLPROP") or not mode_refprop:
-        backend = "HEOS"
-    elif backend == "REFPROP" and mode_refprop:
-        backend = "REFPROP"
-    
+
     # 处理输出项
     # 构建闪蒸计算输出
-    flash = set(OTYPE_MIX.keys())
+    flash = set(OTYPE_MIX.keys()) + set(OTYPE_PHASE.keys())
     flash &= outType
     outType -= flash
     # 如果将进行闪蒸计算而目标组成不是混合物
     if not mixture and flash:
         flash = []
-        errtext += "Input Error. Not support flash calculation for predefine mixture or pure component."
+        errtext += "Input Error. Not support flash calculation for predefine mixture or pure component.\n"
         logger.error(errtext)
         res.update({"error": True,
                     "message": errtext})
-    
+        return {"result": res}
+
     # 构建组合输出
     for item in set(OTYPE_COMBO.keys()).intersection(outType):
         outType.remove(item)
         outType = outType.union(OTYPE_COMBO[item])
-    
+
     # 构建普通输出
-    if outType - set(OTYPE.keys()):
+    if outType - set(map(str.upper, OTYPE.keys())):
         errtext += "Warning: Unsupported Output Type keywords: %s \n" % list(outType - set(OTYPE.keys()))
         logger.warning(errtext)
         res.update({"warning": True,
                     "message": errtext})
-    
+
     outType = outType.intersection(OTYPE.keys())
-    
-    if extend_backend_req:
-        # todo: impletementing of mProp_extend()
-        res.update(mProp_extend())
-    else:
-        sub = cp.AbstractState(backend, sub)
-        if mixture:
-            sub.set_mole_fractions(mixture)
-        sub.update(
-                **input_construct(
-                          inputType1,
-                          inputType2,
-                          inputValue1,
-                          inputValue2
-                          )
-                )
-        
-        for item in outType:
+
+    sub = cp.AbstractState(backend, sub)
+
+    if mixture:
+        sub.set_mole_fractions(mixture)
+    sub.update(
+            **input_construct(
+                        inputType1,
+                        inputType2,
+                        inputValue1,
+                        inputValue2
+                        )
+            )
+
+    # 增加相态指定功能
+    if preferedPhase != "" and preferedPhase.lower() in PHASE:
+        sub.specify_phase(getattr(cp, "iphase_" + preferedPhase.lower())) 
+
+    for item in outType:
+        if backend not in ("REFPROP", "HEOS") and item in ("CONDUCTIVITY", "V") and not mixture:
+            res.update(dippr_wraper(sub, item))
+            if "error" in res:
+                return {"result": res}
+        else:
             try:
                 res.update({
                         item: sub.keyed_output(getattr(cp, OTYPE[item]))
@@ -462,16 +291,40 @@ def mProp(sub:str,
                 res.update({"warning": True,
                             "message": errtext})
 
-        for item in flash:
-            try:
+    q = sub.Q()
+    for item in flash:
+        if q < 0:
+            errtext += "flash calculation can not perform on singularity phase.\n"
+            res.update({"error": True,
+                        "message": errtext})
+            return {"result": res}
+        
+        try:
+            if "FUGA" in item:
+                # abstract.fugacity({number}) to get fugacity of substances
+                res.update({
+                    item: [getattr(sub, OTYPE_PHASE[item])(i) for i in range(len(mixture))]
+                })
+            elif item == "K":
+                sub.specify_phase(cp.iphase_twophase)
+                liq = sub.get_mole_fractions_liquid()
+                vap = sub.get_mole_fractions_vapor()
+                ks = list()
+                for l, v in zip(liq, vap):
+                    if l == 0:
+                        ks.append(0)
+                    else:
+                        ks.append(v/l)
+                res.update({item: ks})
+            else:
                 res.update({
                         item: getattr(sub, OTYPE_MIX[item])()
                         })
-            except Exception as e:
-                errtext += "Calculation Error: Fail to cal [%s]:\n" % item
-                errtext += str(e)
-                res.update({"warning": True,
-                            "message": errtext})
+        except Exception as e:
+            errtext += "Calculation Error: Fail to cal [%s]:\n" % item
+            errtext += str(e)
+            res.update({"warning": True,
+                        "message": errtext})
 
     if {"message", "warning"} == set(res.keys()):
         errtext += "Fatal Calculation Error: No result calculated!"
@@ -480,16 +333,7 @@ def mProp(sub:str,
     
     return {"result": res}
 
-#
-#def pProp_extend():
-#    pass
 
-def mProp_extend():
-    errtext = ""
-    errtext += "Extended component database not impletemented."
-    logger.warning(errtext)
-    return {"error": True, "message": errtext}
-    
 def flasher(sub:str,
             inputType1:str,
             inputValue1:float,
@@ -511,86 +355,35 @@ def flasher(sub:str,
             res.update({"warning": True,
                         "message": errtext})
             mode_refprop = False
+            
+    # 2020-6-5 增加额外EOS组分处理
+    sub, mixture, backend, _res = subsHandler(sub, backend, mode_refprop)
+    if "error" in _res:
+        return {"result": _res}
+    errtext += _res.get("message", "")
+    res.update(_res)
+    del _res
+    
     # 将所有文本输入转化为大写
-    sub = sub.upper()
-    backend = backend.upper()
     inputType1 = inputType1.upper()
     inputType2 = inputType2.upper()
     
-    # 检查纯物质名字是否受到支持
-
-    # 2-检查混合物可用性
-    mixture = re.findall(MIXTURE_PATTERN, sub)
-    if mixture:
-        # get substance name
-        sub = list(map(lambda x: x.split(":")[0], mixture))
-        # get substance fraction
-        mixture = list(map(lambda x: float(x.split(":")[1]), mixture))
-        
-        if set(sub) - set(SUBS_P.keys()):
-            errtext += "Input Error: Not supported substance for mixture: " + ", ".join(sub)
-            logger.error(errtext)
-            res.update({"error": True,
-                        "message": errtext})
-            return {"result": res}
-        else:
-            if reduce(lambda acc, x: SUBS_P[x][2] or acc, sub, False):
-                errtext += "Input Error: Building a mixture with a mixture..."
-                logger.error(errtext)
-                res.update({"error": True,
-                        "message": errtext})
-                return {"result": res}
-            else:
-                if backend in ("CP", "COOLPROP"):
-                    sub = "&".join([SUBS_P[i][0] for i in sub])
-                elif mode_refprop:
-                    sub = "&".join([SUBS_P[i][1] for i in sub])
-                    if "N/A" in sub:
-                        errtext += "Input Error: Not supported substance for REFPROP is detected."
-                        logger.error(errtext)
-                        res.update({"error": True,
-                                    "message": errtext})
-                        return {"result": res}
-                else:
-                    extend_backend_req = True
-
-        # 检查混合组分输入是否均为正数
-        if not reduce(lambda acc, x: acc and (x > 0), mixture, True):
-            errtext += "Input Error: Building a mixture with a mixture..."
-            logger.error(errtext)
-            res.update({"error": True,
-                    "message": errtext})
-            return {"result": res}
-        mixture = [i/sum(mixture) for i in mixture]
-    else:
-        extend_backend_req = True
-    
-    if not mixture:
-        errtext += "Input Error: Can not calculate flashing for pure component."
-        logger.error(errtext)
-        res.update({"error": True,
-                    "message": errtext})
-        return {"result": res}
-
-    if type(sub) == str:
-        res.update({"components": sub.split("&")})
-
     if inputType1 == inputType2:
-        errtext += "Input Error. Only one input Type [%s] is given." % inputType1
+        errtext += "Input Error. Only one input Type [%s] is given.\n" % inputType1
         logger.error(errtext)
         res.update({"error": True,
                     "message": errtext})
         return {"result": res}
     
     if SequenceMatcher(None, inputType1, inputType2).find_longest_match(0, len(inputType1), 0, len(inputType2)).size:
-        errtext += "Input Error. Input Type [%s&%s] is the same." % (inputType1, inputType2)
+        errtext += "Input Error. Input Type [%s&%s] is the same.\n" % (inputType1, inputType2)
         logger.error(errtext)
         res.update({"error": True,
                     "message": errtext})
         return {"result": res}
         
     if not {inputType1, inputType2}.issubset(ITYPE):
-        errtext += "Input Error. Invalid input type combo [%s&%s]." % (inputType1, inputType2)
+        errtext += "Input Error. Invalid input type combo [%s&%s].\n" % (inputType1, inputType2)
         logger.error(errtext)
         res.update({"error": True,
                     "message": errtext})
@@ -607,38 +400,84 @@ def flasher(sub:str,
         inputValue1 = float(inputValue1)
         inputValue2 = float(inputValue2)
     except:
-        errtext += "Input Error. Invalid values are not numbers."
+        errtext += "Input Error. Invalid values. Values are not numbers.\n"
         logger.error(errtext)
         res.update({"error": True,
                     "message": errtext})
         return {"result": res}
     
-    if backend in ("PENGROBINSON", "PENG-ROBINSON", "PR"):
-        backend = "PR"
-    elif backend in ("CP", "COOLPROP") or not mode_refprop:
-        backend = "HEOS"
-    elif backend == "REFPROP" and mode_refprop:
-        backend = "REFPROP"
+    # 2020-6-5 增加额外EOS组分处理
+    # 2024-03-05 调整位置，减少不必要计算
+    # sub, mixture, backend, _res = subsHandler(sub, backend, mode_refprop)
+    # if "error" in _res:
+    #     return {"result": _res}
+    # errtext += _res.get("message", "")
+    # res.update(_res)
+    # del _res
+    if not mixture:
+        errtext += "Input Error: Can not calculate flashing for pure component.\n"
+        logger.error(errtext)
+        res.update({"error": True,
+                    "message": errtext})
+        return {"result": res}
+    if type(sub) == str:
+        res.update({"components": sub.split("&")})
+    sub = cp.AbstractState(backend, sub)
+
+    sub.set_mole_fractions(mixture)
+    sub.update(
+            **input_construct(
+                        inputType1,
+                        inputType2,
+                        inputValue1,
+                        inputValue2
+                        )
+            )
     
+    Q = sub.keyed_output(getattr(cp, "iQ"))
+    T = sub.T()
+    P = sub.p()
+    rtn = dict()
+    for item in outType:
+        try:
+            rtn.update({
+                    item: sub.keyed_output(getattr(cp, OTYPE[item]))
+                    })
+        except Exception as e:
+            errtext += "Calculation Error: Fail to cal [%s] for INFLOW:\n" % item
+            errtext += str(e)
+            res.update({"warning": True,
+                        "message": errtext})
+    rtn.update({"Fraction": mixture})
+    res.update({
+        "IN": rtn,
+        "T": T,
+        "P": P,
+        "Q": Q
+        })
     
-    if extend_backend_req:
-        # todo: impletementing of mProp_extend()
-        res.update(mProp_extend())
-    else:
-        sub = cp.AbstractState(backend, sub)
+    if not (0 < Q < 1):
+        errtext += "Input Error: INFLOW is single phase\n"
+        res.update({"warning": True,
+                    "message": errtext})
+        return {"result": res}
+
+    for mix in OTYPE_MIX:
+        _mixture = None
         sub.set_mole_fractions(mixture)
-        sub.update(
-                **input_construct(
-                          inputType1,
-                          inputType2,
-                          inputValue1,
-                          inputValue2
-                          )
-                )
-#       
-        Q = sub.keyed_output(getattr(cp, "iQ"))
-        T = sub.T()
-        P = sub.p()
+        try:
+            _mixture = getattr(sub, OTYPE_MIX[mix])()
+        except Exception as e:
+            errtext += "Calculation Error: Fail to cal [%s]:\n" % mix
+            errtext += str(e)
+            res.update({"warning": True,
+                        "message": errtext})
+            continue
+
+        sub.set_mole_fractions(_mixture)
+        sub.specify_phase(cp.iphase_gas if mix == "VAPFRAC" else cp.iphase_liquid)
+        sub.update(cp.PT_INPUTS, P, T)
+        
         rtn = dict()
         for item in outType:
             try:
@@ -650,49 +489,8 @@ def flasher(sub:str,
                 errtext += str(e)
                 res.update({"warning": True,
                             "message": errtext})
-        rtn.update({"Fraction": mixture})
-        res.update({
-            "IN": rtn,
-            "T": T,
-            "P": P,
-            "Q": Q
-            })
-        
-        if not (0 < Q < 1):
-            errtext += "Input Error: INFLOW is single phase"
-            res.update({"warning": True,
-                        "message": errtext})
-            return {"result": res}
-        
-        for mix in OTYPE_MIX:
-            _mixture = None
-            sub.set_mole_fractions(mixture)
-            try:
-                _mixture = getattr(sub, OTYPE_MIX[mix])()
-            except Exception as e:
-                errtext += "Calculation Error: Fail to cal [%s]:\n" % mix
-                errtext += str(e)
-                res.update({"warning": True,
-                            "message": errtext})
-                continue
-
-            sub.set_mole_fractions(_mixture)
-            sub.specify_phase(cp.iphase_gas if mix == "VAPFRAC" else cp.iphase_liquid)
-            sub.update(cp.PT_INPUTS, P, T)
-            
-            rtn = dict()
-            for item in outType:
-                try:
-                    rtn.update({
-                            item: sub.keyed_output(getattr(cp, OTYPE[item]))
-                            })
-                except Exception as e:
-                    errtext += "Calculation Error: Fail to cal [%s] for INFLOW:\n" % item
-                    errtext += str(e)
-                    res.update({"warning": True,
-                                "message": errtext})
-            rtn.update({"Fraction": _mixture})
-            res.update({mix: rtn})
+        rtn.update({"Fraction": _mixture})
+        res.update({mix: rtn})
                 
     if {"message", "warning"} == set(res.keys()):
         errtext += "Fatal Calculation Error: No result calculated!"
@@ -701,4 +499,132 @@ def flasher(sub:str,
     
     return {"result": res}
     
+
+def subsHandler(sub:str, backend:str, mode_refprop=False):
+    res = dict()
+    errtext = ""
+
+    sub = sub.upper()
+    backend = backend.upper()
+    # print(mode_refprop, backend)
+
+    # 检查是否混合物
+    mixture = re.findall(MIXTURE_PATTERN, sub)
+    # 检查是否指定backend
+    # 未指定或错误则使用CoolProp
+    if mode_refprop and backend == "REFPROP":
+        backend = "REFPROP"
+    elif backend in ("PENGROBINSON", "PENG-ROBINSON", "PR"):
+        backend = "PR"
+    elif backend in ("SRK", "S-RK"):
+        backend = "SRK"
+    else:
+        if backend not in ("CP", "COOLPROP", "HEOS"):
+            errtext += "Input Warning: Unsupported backend, using CoolProp as default.\n"
+            res.update({
+                "warning": True,
+                "message": errtext
+                        })
+            logger.warning(errtext)
+        backend = "HEOS"
     
+    # 组分分析：
+
+    # 1. mixtur?
+    if mixture:
+        sub = list(map(lambda x: x.split(":")[0], mixture))
+        mixture = list(map(lambda x: float(x.split(":")[1]), mixture))
+    else:
+        sub = [sub]
+    _sub = sub # substance list backup
+
+    # which substance dict?
+    # + refprop or coolprop?
+    #  + building mixture from mixture?
+    #   + exit
+    #  + refprop name change
+    #   -or HEOS HEOS name change
+    # + EOS
+    # - ERROR
+    if (not (set(sub) - set(SUBS_P.keys()))) and backend in ("HEOS", "REFPROP"):
+        if mixture and reduce(lambda acc, x: SUBS_P[x][2] or acc, sub, False):
+            errtext += "Input Error: unable to build a mixture with a mixture.\n"
+            logger.error(errtext)
+            res.update({"error": True,
+                    "message": errtext})
+            return (None, None, None, res)
+
+        sub = "&".join([SUBS_P[i][1] for i in sub]) if backend == "REFPROP" \
+              else "&".join([SUBS_P[i][0] for i in sub])
+
+        if "N/A" in sub:
+            sub = "&".join([SUBS_P[i][0] for i in _sub])
+            errtext += "Input Warning: Unsupported substances for Refprop, using CoolProp as default.\n"
+            res.update({
+                "warning": True,
+                "message": errtext
+                        })
+            logger.warning(errtext)
+            backend = "HEOS"
+
+    elif (not set(sub) - SUBS_EOS) and EXEOS_READY:
+        sub = "&".join(sub)
+        if backend not in ("SRK", "PR"):
+            errtext += "Input Warning: Extended substance is given, Using SRK backend instead.\n"
+            res.update({
+                "warning": True,
+                "message": errtext
+                        })
+            logger.warning(errtext)
+            backend = "SRK"
+    else:
+        errtext += f"Input Error: Unsupported substance in INPUT: {', '.join(sub)}\n"
+        logger.error(errtext)
+        res.update({
+            "error": True,
+            "message": errtext
+                    })
+        return (None, None, None, res)
+
+    # 3. 检查混合组分输入是否均为正数&归一化
+    if mixture:
+        if not reduce(lambda acc, x: acc and (x > 0), mixture, True):
+            errtext += "Input Error: Minus value in mixture fraction.\n"
+            logger.error(errtext)
+            res.update({"error": True,
+                    "message": errtext})
+            return (None, None, None, res)
+        mixture = [i/sum(mixture) for i in mixture]
+
+    return (sub, mixture, backend, res)
+
+def dippr_wraper(sub:cp.AbstractState, item:str)->dict:
+    sub_name = sub.fluid_names()[0]
+    Pcc = sub.keyed_output(getattr(cp, OTYPE["P"]))
+    Tar = sub.keyed_output(getattr(cp, OTYPE["T"]))
+    Tcc = cp.PropsSI("T", "Q", 1, "P", Pcc, "SRK::" + sub_name)
+    item = DIPP_CONV[item] + ("V" if Tar >= Tcc else "L")
+    sub_name = DIPPR_NAME_CONV[sub_name]
+
+    errtext = ""
+    res = dict()
+    try:
+        func = DIPP_PARAM[sub_name][item]["func"]
+        if func == "0":
+            raise ValueError
+    except (ValueError, KeyError, IndexError) as e:
+        errtext += "Calculation Error: DIPPR function for [%s] not implete:\n" % sub_name
+        errtext += str(e)
+        res.update({"error": True,
+                    "message": errtext})
+    finally:
+        try:
+            res.update({
+                item: getattr(dippr_functions, "function" + func)(DIPP_PARAM[sub_name][item]["coef"])(Tar)
+                })
+        except Exception as e:
+            errtext += "Calculation Error: Fail to cal [%s]:\n" % item
+            errtext += str(e)
+            res.update({"warning": True,
+                        "message": errtext})
+    return res

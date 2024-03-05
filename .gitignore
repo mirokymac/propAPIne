@@ -19,16 +19,12 @@ __pycache__
 # vscode
 .vscode
 
-# testfiles
-testing
-
 # REFPROP build files
 # CMAKE
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
 CMakeScripts
-Testing
 Makefile
 cmake_install.cmake
 install_manifest.txt
@@ -37,6 +33,15 @@ CTestTestfile.cmake
 _deps
 refprop_builder_docker/build/*
 refprop_builder_docker/fortran/*
+
+# lisenced files
+/server/refprop/*
+
+# ignore runtime file
+/server_docker/propAPIne/server/*
+
+# ignore playground
+testing
 
 # Old files
 *_old.*

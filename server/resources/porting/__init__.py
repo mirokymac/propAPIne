@@ -7,5 +7,6 @@ Created on Sat Apr 21 16:55:27 2018
 
 from . import humidAir
 from . import prop
+from . import dippr_functions
 
-__all__ = ["humidAir", "prop"]
+__all__ = ["humidAir", "prop", "dippr_functions"]

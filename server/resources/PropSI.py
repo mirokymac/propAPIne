@@ -53,7 +53,7 @@ class PropSI(Resource):
         
         extra = None
         if args.extra:
-            extra = string_to_dict(args.extra)
+            extra = string_to_dict(args.extra, {"backend":"REFPROP"})
         
         if extra and "backend" in extra:
             result = mProp(args.substance,
