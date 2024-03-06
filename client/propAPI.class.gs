@@ -1,6 +1,10 @@
 /**
  * @OnlyCurrentDoc
  */
+// change log:
+// 2019-11-26: bug fixes for predifined bundles
+//             lowercase can be use as input and out put type now
+// 2024-03-06: add multi output support for propsi
 
 (function(root){
   function ALprop(){
@@ -9,18 +13,29 @@
     }
   };
   
-  const BASEURL = "http://la01.localhost:22001"
+  const BASEURL = "http://localhost:22001"
   const RETRIES_MAX = 5;
   const HAPROPS = ['T', 'B', 'D', 'V', 'Vha', 'R', 'W', 'Y', 'H', 'Hha', 'S', 'Sha', 'C', 'Cha', 'M', 'Z', 'K', 'A'];
   const HAPROPS_IN = ['T', 'R', 'D', 'W', 'P', 'B', 'H', 'Hha', 'Y', 'P_w', 'S', 'Sha', 'V', 'Vha'];
   
-  var PROPSI = ["DELTA", "DMOLAR", "D", "HMOLAR", "H", "P", "Q", "SMOLAR", "S", "TAU", "T", "UMOLAR", "U", "ACENTRIC", "ALPHA0", "ALPHAR", "A", "BVIRIAL", "CONDUCTIVITY", "CP0MASS", "CP0MOLAR", "CPMOLAR", "CVIRIAL", "CVMASS", "CVMOLAR", "CP", "DALPHA0_DDELTA_CONSTTAU", "DALPHA0_DTAU_CONSTDELTA", "DALPHAR_DDELTA_CONSTTAU", "DALPHAR_DTAU_CONSTDELTA", "DBVIRIAL_DT", "DCVIRIAL_DT", "DIPOLE_MOMENT", "FH", "FRACTION_MAX", "FRACTION_MIN", "FUNDAMENTAL_DERIVATIVE_OF_GAS_DYNAMICS", "GAS_CONSTANT", "GMOLAR", "GWP100", "GWP20", "GWP500", "G", "HELMHOLTZMASS", "HELMHOLTZMOLAR", "HH", "ISOBARIC_EXPANSION_COEFFICIENT", "ISOTHERMAL_COMPRESSIBILITY", "I", "M", "ODP", "PCRIT", "PHASE", "PH", "PIP", "PMAX", "PMIN", "PRANDTL", "PTRIPLE", "P_REDUCING", "RHOCRIT", "RHOMASS_REDUCING", "RHOMOLAR_CRITICAL", "RHOMOLAR_REDUCING", "SMOLAR_RESIDUAL", "TCRIT", "TMAX", "TMIN", "TTRIPLE", "T_FREEZE", "T_REDUCING", "V", "Z"];
-  PROPSI.concat(["CRIT", "FLOW", "HEAT"]);
-  PROPSI.concat(["VAPFRAC", "LIQFRAC"]);
+  var PROPSI = ["DELTA", "DMOLAR", "D", "HMOLAR", "H", "P", "Q", "SMOLAR", "S", "TAU", "T", "UMOLAR", "U", "ACENTRIC", "ALPHA0", "ALPHAR", "A", "BVIRIAL", "CONDUCTIVITY", "CP0MASS", "CP0MOLAR", "CPMOLAR", "CVIRIAL", "CVMASS", "CVMOLAR", "CP", "DALPHA0_DDELTA_CONSTTAU", "DALPHA0_DTAU_CONSTDELTA", "DALPHAR_DDELTA_CONSTTAU", "DALPHAR_DTAU_CONSTDELTA", "DBVIRIAL_DT", "DCVIRIAL_DT", "DIPOLE_MOMENT", "FH", "FRACTION_MAX", "FRACTION_MIN", "FUNDAMENTAL_DERIVATIVE_OF_GAS_DYNAMICS", "GAS_CONSTANT", "GMOLAR", "GWP100", "GWP20", "GWP500", "G", "HELMHOLTZMASS", "HELMHOLTZMOLAR", "HH", "ISBRCOEFF", "ISTHCOEFF", "I", "M", "ODP", "PCRIT", "PHASE", "PH", "PIP", "PMAX", "PMIN", "PRANDTL", "PTRIPLE", "P_REDUCING", "RHOCRIT", "RHOMASS_REDUCING", "RHOMOLAR_CRITICAL", "RHOMOLAR_REDUCING", "SMOLAR_RESIDUAL", "TCRIT", "TMAX", "TMIN", "TTRIPLE", "T_FREEZE", "T_REDUCING", "V", "Z"];
   const PROPSI_QC = ["ACENTRIC", "DIPOLE_MOMENT", "FH", "FRACTION_MAX", "FRACTION_MIN", "GAS_CONSTANT", "GWP100", "GWP20", "GWP500", "HH", "M", "ODP", "PCRIT", "PH", "PMAX", "PMIN", "PTRIPLE", "P_REDUCING", "RHOCRIT", "RHOMASS_REDUCING", "RHOMOLAR_CRITICAL", "RHOMOLAR_REDUCING", "TCRIT", "TMAX", "TMIN", "TTRIPLE", "T_FREEZE", "T_REDUCING", "CRIT"];
   const PROPSI_IN = ["DMOLAR", "D", "HMOLAR", "H", "P", "Q", "SMOLAR", "S", "T", "UMOLAR", "U"];
-  
   const regex = /[\"\'\{\}]/gi;
+  const TYPE_PATTERN = /[A-Za-z0-9\_]+/gi;
+  
+  // predifined bundles:
+  const PD_BUNDLES = {
+    "HEAT": ["S", "CP", "U", "H"],
+    "FLOW": ["D", "M", "V", "Z"],
+    "CRIT": ["TCRIT", "PCRIT", "ACENTRIC", "M"]
+  };
+  PROPSI = PROPSI.concat(Object.keys(PD_BUNDLES));
+  // phase fraction codes
+  const PHASE_FRAC = ["VAPFRAC", "LIQFRAC"];
+  const PHASE_PROP = ["FUGACITY", "FUGACITYCOEFF", "K"];
+  PROPSI = PROPSI.concat(PHASE_FRAC);
+  PROPSI = PROPSI.concat(PHASE_PROP);
   
   ALprop.prototype = {
     "_getBaseUrl": function(){
@@ -30,7 +45,7 @@
       if (BASEURL instanceof Array){
         return BASEURL[Math.floor(Math.random() * BASEURL.length)];
       }
-      return "http://hocalhost:22002";
+      return "http://la01.localhost:22001";
     },
     
     "_UrlCombine": function(base_url, payload){
@@ -63,7 +78,7 @@
       return res;
     },
     
-    "_toResultList": function(dict, res, skips){
+    "_toResultList": function(dict, res, skips, constraints_orders){
       if (typeof skips == "string"){
         skips = [skips];
       } else if (!(skips instanceof Array)){
@@ -72,13 +87,52 @@
       if (!res){
         var res = [[], []];
       }
+      var keys = Object.keys(dict).sort()
+      var key;
+      var multikeys = [];
       if (typeof dict == "object"){
-        for (key in dict){
+        for (var i in keys){
+          key = keys[i];
           if (!(skips.indexOf(key) > -1)){
             res[0].push(key);
             res[1].push(dict[key]);
+            if (Array.isArray(dict[key])){
+              multikeys.push(i);
+            }
           }
         }
+      }
+      
+      if (res[0].length > 1){
+        for (i in multikeys){
+          Logger.log(res[1][multikeys[i]])
+          res[1][multikeys[i]] = res[1][multikeys[i]].join(",");
+        }
+      }
+      if (Array.isArray(constraints_orders)){
+      var k_index = 0, temp;
+
+        for (var i in constraints_orders){
+          key = constraints_orders[i];
+          k_index = res[0].indexOf(key);
+          if (k_index > -1){
+            temp = res[0][k_index];
+            res[0].splice(k_index, 1);
+            res[0].push(temp);
+            temp = res[1][k_index];
+            res[1].splice(k_index, 1);
+            res[1].push(temp);
+          }
+        }
+      }
+
+      if (res[0].length == 1 && Array.isArray(res[1][0])){
+        i = 0;
+        while (i < res[1][0].length -1){
+          res[0].push("");
+          i = i + 1
+        }
+        res[1] = res[1][0];
       }
       return res;
     },
@@ -100,11 +154,15 @@
       }
       
       // check output validation
+      //outType = outType.toUpperCase();
       if (!(HAPROPS.indexOf(outType) > -1)){
         throw new Error("OutType not in list, check TypeReference");
         return null;
       }
       // check input validation
+      inType1 = inType1.toUpperCase();
+      inType2 = inType2.toUpperCase();
+      inType3 = inType3.toUpperCase();
       var inSet = this._toSet([inType1, inType2, inType3]);
       if (inSet.length != 3 || !this._isSuperSet(HAPROPS_IN, inSet)){
         throw new Error("InType must be 3 difference kinds, check TypeReference");
@@ -159,7 +217,7 @@
         }
       }
       if (!doneFlag){
-        throw new Error("Target Server can not be access, edit your BASEURL list.");
+        throw new Error("Check your input, like Pressure, which likely to have typo error.\nOr target Server can not be access, try later.");
         return null;
       }
       
@@ -184,8 +242,14 @@
     "propsi": function(substance, outType, inType1, inValue1, inType2, inValue2, backend){
       
       // check output validation
-      if (!(PROPSI.indexOf(outType) > -1)){
-        throw new Error("OutType not in list, check TypeReference");
+      outType = outType.toUpperCase();
+      outType = [...outType.matchAll(TYPE_PATTERN)];
+      if (outType.length > 0){
+        outType = outType.map(x => x[0]);
+      }
+      outType = [...new Set(outType)];
+      if (!this._isSuperSet(PROPSI, outType)){
+        throw new Error("OutType not in list, check PropSI_NameOfTheProperties for reference");
         return null;
       }
       
@@ -197,14 +261,17 @@
       extra = JSON.stringify(extra).replace(regex, "");
       
       var payload = null;
+      var res = [[], []];
       // check input validation
-      if (!(PROPSI_QC.indexOf(outType) > -1)){
+      if (outType.length == 1 && !(PROPSI_QC.indexOf(outType[0]) > -1)){
+        inType1 = inType1.toUpperCase();
+        inType2 = inType2.toUpperCase();
         var inSet = this._toSet([inType1, inType2]);
         if (inSet.length != 2 || !this._isSuperSet(PROPSI_IN, inSet)){
           throw new Error("InType must be 2 difference kinds, check TypeReference");
           return null;
         };
-        
+
         // check input values are NUMBER
         if (!(typeof inValue1 == 'number')){
           throw new Error("inValue1 shall be a number.");
@@ -213,6 +280,24 @@
         if (!(typeof inValue2 == 'number')){
           throw new Error("inValue2 shall be a number.");
           return null;
+        }
+
+        var key = outType.indexOf(inType1);
+        if (key > -1){
+            res[0].push(inType1);
+            res[1].push(inValue1);
+            outType.splice(key, 1);
+        }
+        
+        key = outType.indexOf(inType2);
+        if (outType.indexOf(inType2) > -1){
+            res[0].push(inType2);
+            res[1].push(inValue2);
+            outType.splice(key, 1);
+        }
+
+        if (outType.length == res[0].length){
+          return res
         }
         
         payload = {
@@ -267,14 +352,22 @@
       }
       
       var data = JSON.parse(response)['result'];
-      var res = [[], []];
+      var cons = [];
       if (data){
         if (data['error']){
           if (data['message']) throw new Error("Error occur: " + data['message']);
           if (data['substance']) throw new Error('Not supported substance, check SUBSTANCE_REF for supported substances');
           return null;
         }
-        res = this._toResultList(data, res, ['warning', 'error', 'message', 'substance']);
+        for (var key in PD_BUNDLES){
+          if (outType.indexOf(key) > -1){
+            cons = cons.concat(PD_BUNDLES[key]);
+          }
+        }
+        res = this._toResultList(data, res, ['warning', 'error', 'message', 'substance'], cons);
+        // if (extflag){
+        //   res[1] = res[1][0];
+        // }
         if (data['warning']){
           res[0].push('warning');
           res[1].push(data['message']);
@@ -325,7 +418,7 @@
 //      var logtimeS = (new Date()).getTime();
       while (retries < RETRIES_MAX){
         retries += 1;
-//        Logger.log(this._UrlCombine(this._getBaseUrl() + "/propsi",payload));
+        Logger.log(this._UrlCombine(this._getBaseUrl() + "/propsi",payload));
         try{
           response = UrlFetchApp.fetch(
             this._UrlCombine(
@@ -527,26 +620,41 @@
 
 
 /**
- * get substance properties calculation from CoolProp Server
- *
+ * get substance properties calculation from CoolProp backend.
+ * 
  * @param {"Z"} outputtype - Out put type of the calculation, check PropSI_NameOfTheProperties for Types.
- * @param {"water"} substance - Calculation substances code, get full list on PropSI_NameOfSubstances.
+ * @param {"H2"} substance - Calculation substances code, get full list on PropSI_NameOfSubstances.
  * @param {"T"} type1 - Code for 1st input properties, check PropSI_NameOfTheProperties for Types.
  * @param {273.15} value1 - value of 1st input properties, check PropSI_NameOfTheProperties for Units.
  * @param {"P"} type2 - Code for 2nd input properties, check PropSI_NameOfTheProperties for types.
  * @param {101325} value2 - value of 2nd input properties, check PropSI_NameOfTheProperties for Units.
- * @param {false} keys - *default=false* if -True- return 2 rows of content, 1st row is output type.
- * @param {false} no_REFPROP - *default=false* using REFPROP backend if false.
- * @return {value} return density in kg/cum.
+ * @param {REFPROP} backend - backend, available in [REFPROP, CP, SRK, PR].
+ * @param {false} suppress warning, True to suppress server site calculation warning.
+ * @param {false} keys - *default=False for single output, True for multi output except MIX out* if -True- return 2 rows of content, 1st row is output type.
+ *
  * @customfunction
  */
-function properties(outputtype, substance, type1, value1, type2, value2, keys, no_REFPROP){
-  var res = ALprop.propsi(substance, outputtype, type1, value1, type2, value2, !no_REFPROP? "REFPROP": "CP")
+function properties(outputtype, substance, type1, value1, type2, value2, backend, suppress, keys){
+  var res = ALprop.propsi(substance, outputtype, type1, value1, type2, value2, ["SRK", "PR", "CP"].indexOf(backend) < 0? "REFPROP": backend)
+
+  Logger.log(res);
+  suppress = !!suppress;
+
+
+  if (res[0].length )
   if (!keys){
-    return [res[1]];
+    if (!suppress) {
+      return [res[1]];
+    } else {
+      return res[1][0];
+    }
   } else {
-    return res;
-  }    
+    if (!suppress) {
+      return res;
+    } else {
+      return [[res[0]],[res[1]]]
+    }
+  }  
 }
 
 /**
@@ -612,14 +720,14 @@ function Z(substance, type1, value1, type2, value2, no_REFPROP){
 }
 
 /**
- * get substance density calculation using REFPROP backend from CoolProp Server
+ * get flash calculation using REFPROP backend from CoolProp Server
  *
  * @param {"[O2:21, N2:78, Argon:1]"} substance - Calculation substances code, get full list on PropSI_NameOfSubstances.
  * @param {"Q"} type1 - Code for 1st input properties, check PropSI_NameOfTheProperties for Types.
  * @param {0.3} value1 - value of 1st input properties, check PropSI_NameOfTheProperties for Units.
  * @param {"P"} type2 - Code for 2nd input properties, check PropSI_NameOfTheProperties for types.
  * @param {101325} value2 - value of 2nd input properties, check PropSI_NameOfTheProperties for Units.
- * @return {R9+C2-4} return density in kg/cum.
+ * @param {REFPROP} backend - backend, available in [REFPROP, CP].
  * @customfunction
  */
 function mixture_flash(substance, type1, value1, type2, value2, no_REFPROP){
@@ -638,8 +746,8 @@ function mixture_flash(substance, type1, value1, type2, value2, no_REFPROP){
  * @param {273.15} value1 - value of 1st input properties, check PropSI_NameOfTheProperties for Units.
  * @param {"P"} type2 - Code for 2nd input properties, check PropSI_NameOfTheProperties for types.
  * @param {101325} value2 - value of 2nd input properties, check PropSI_NameOfTheProperties for Units.
- * @param {"R"} type2 - Code for 3rd input properties, check PropSI_NameOfTheProperties for types.
- * @param {0.3} value2 - value of 3rd input properties, check PropSI_NameOfTheProperties for Units.
+ * @param {"R"} type3 - Code for 3rd input properties, check PropSI_NameOfTheProperties for types.
+ * @param {0.3} value3 - value of 3rd input properties, check PropSI_NameOfTheProperties for Units.
  * @return {value} return value of the output type.
  * @customfunction
  */
@@ -648,8 +756,24 @@ function humiAir(outType, type1, value1, type2, value2, type3, value3){
   return data[1][data[0].indexOf(outType)];
 }
 
+/**
+ * Multiplies an input value by 2.
+ * @param {number} input The number to double.
+ * @return The input multiplied by 2.
+ * @customfunction
+*/
+function rs(){
+  return [['T', 'VAPFRAC'], [84.87080768127659, [0.6861548000076236, 0.29558516609053737, 0.018260033901839057]]]
+}
 
 
 function test(){
-  ALprop.flash("[O2:21, N2:78, AR:1]", "Q", 0.3, "P", 101325, "REFPROP")
+//  ALprop.flash("[O2:21, N2:78, AR:1]", "Q", 0.3, "P", 101325, "REFPROP");
+  Logger.log(properties("T,V,Z", "[N2:46.0919148480653,O2:51.604049876984,AR:2.30403527495069]", "S", 5555, "P", 123325))
+  Logger.log(properties("H,Z,Q", "[N2:46.0919148480653,O2:51.604049876984,AR:2.30403527495069]", "Q", 0.3, "P", 123325))
+  Logger.log(properties("VAPFRAC, T", "[N2:46.0919148480653,O2:51.604049876984,AR:2.30403527495069]", "Q", 0.3, "P", 123325))
+  // Logger.log(Array.isArray([]))
+  // Logger.log([].length)
+    // var PROPSI = ["DELTA", "DMOLAR", "D", "HMOLAR", "H", "P", "Q", "SMOLAR", "S", "TAU", "T", "UMOLAR", "U", "ACENTRIC", "ALPHA0", "ALPHAR", "A", "BVIRIAL", "CONDUCTIVITY", "CP0MASS", "CP0MOLAR", "CPMOLAR", "CVIRIAL", "CVMASS", "CVMOLAR", "CP", "DALPHA0_DDELTA_CONSTTAU", "DALPHA0_DTAU_CONSTDELTA", "DALPHAR_DDELTA_CONSTTAU", "DALPHAR_DTAU_CONSTDELTA", "DBVIRIAL_DT", "DCVIRIAL_DT", "DIPOLE_MOMENT", "FH", "FRACTION_MAX", "FRACTION_MIN", "FUNDAMENTAL_DERIVATIVE_OF_GAS_DYNAMICS", "GAS_CONSTANT", "GMOLAR", "GWP100", "GWP20", "GWP500", "G", "HELMHOLTZMASS", "HELMHOLTZMOLAR", "HH", "ISBRCOEFF", "ISTHCOEFF", "I", "M", "ODP", "PCRIT", "PHASE", "PH", "PIP", "PMAX", "PMIN", "PRANDTL", "PTRIPLE", "P_REDUCING", "RHOCRIT", "RHOMASS_REDUCING", "RHOMOLAR_CRITICAL", "RHOMOLAR_REDUCING", "SMOLAR_RESIDUAL", "TCRIT", "TMAX", "TMIN", "TTRIPLE", "T_FREEZE", "T_REDUCING", "V", "Z"];
+
 }
